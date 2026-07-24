@@ -36,11 +36,7 @@ Se usa la librería `yfinance` para obtener precios reales del mercado desde Yah
 
 ---
 
-## Interfaz gráfica — Prototipo temprano
-
-> ⚠️ **Nota:** Lo que se describe a continuación es únicamente una **idea inicial** de cómo podría verse la interfaz gráfica del proyecto. No representa el diseño final ni ha sido aprobada por el equipo. Su propósito es explorar posibilidades y servir como punto de discusión.
-
-Como complemento al backend, se desarrolló un prototipo de interfaz web usando **Flask** y **Jinja2**, con una estética cyberpunk.
+## Interfaz gráfica 
 
 ### Tecnologías usadas
 
@@ -73,21 +69,7 @@ python3 ui.py
 
 Luego abrir `http://localhost:5050` en el navegador.
 
----
 
-## Estado del proyecto
-
-- [x] Estructuras de datos implementadas
-- [x] Modelos de dominio definidos
-- [x] Integración con precios reales (yfinance)
-- [x] Prototipo de interfaz gráfica web
-- [ ] Interfaz gráfica definitiva (pendiente aprobación del equipo)
-- [ ] Persistencia de datos
-- [ ] Autenticación de usuarios
-- [ ] Integración con IA para tesis de inversión
-- [ ] Tests unitarios
-
----
 
 ## Equipo
 
