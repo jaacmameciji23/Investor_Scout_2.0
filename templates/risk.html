@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+{% block title %}Risk — Investor Scout{% endblock %}
+
+{% block extra_head %}
+<style>
+  .graph-canvas {
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    width: 100%;
+    height: 420px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .risk-result-card {
+    border-radius: var(--radius-sm);
+    padding: 1.1rem;
+    font-size: 0.88rem;
+  }
+  .risk-exposed { background: rgba(255,59,48,0.08); }
+  .risk-safe    { background: rgba(52,199,89,0.08); }
+
+  .rel-type-badge {
+    display: inline-block; padding: 0.12rem 0.5rem;
+    border-radius: 6px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .rel-supplier   { background: rgba(255,149,0,0.14); color: var(--orange); }
+  .rel-customer   { background: rgba(0,122,255,0.14); color: var(--blue); }
+  .rel-competitor { background: rgba(255,59,48,0.14); color: var(--red); }
+
+  .graph-node {
+    position: absolute;
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.68rem; font-weight: 700;
+    text-align: center;
+    cursor: default;
+    transition: transform 0.15s;
+    z-index: 2;
+    background: var(--bg-card);
+    box-shadow: var(--shadow);
+    color: var(--text-muted);
+    user-select: none;
+  }
+  .graph-node.in-portfolio {
+    color: var(--blue);
+    box-shadow: 0 0 0 2px var(--blue), var(--shadow);
+  }
+  .graph-node:hover { transform: scale(1.12); z-index: 10; }
+
+  .edge-label {
+    position: absolute;
+    font-size: 0.62rem; font-weight: 600;
+    background: var(--bg-input);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 3;
+    white-space: nowrap;
+  }
+  .edge-supplier   { color: var(--orange); }
+  .edge-customer   { color: var(--blue); }
+  .edge-competitor { color: var(--red); }
+
+  .graph-controls {
+    display: flex; align-items: center; gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .type-toggle {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.32rem 0.7rem;
+    border-radius: 7px;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    background: var(--bg-input);
+    color: var(--text-muted);
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .type-toggle .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .type-toggle.active.supplier   { border-color: var(--orange); color: var(--orange); background: rgba(255,149,0,0.1); }
+  .type-toggle.active.customer   { border-color: var(--blue);   color: var(--blue);   background: rgba(0,122,255,0.1); }
+  .type-toggle.active.competitor { border-color: var(--red);    color: var(--red);    background: rgba(255,59,48,0.1); }
+
+  .focus-select {
+    margin-left: auto;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text);
+    background: var(--bg-input);
+    border: none;
+    border-radius: 7px;
+    padding: 0.4rem 0.6rem;
+  }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Risk</div>
+  <div class="page-subtitle">{{ total_empresas }} companies mapped · showing relationships connected to your holdings</div>
+</div>
+
+<div class="grid-2" style="margin-bottom:1.5rem">
+
+  <!-- IZQUIERDA: VISUALIZACIÓN DEL GRAFO -->
+  <div style="display:flex;flex-direction:column;gap:1.25rem">
+    <div class="card">
+      <div class="section-title">Relationship Map</div>
+
+      {% if datos_grafo.nodos %}
+      <div class="graph-controls" id="controlesGrafo">
+        <div class="type-toggle active supplier" data-type="SUPPLIER"><span class="dot"></span>Supplier</div>
+        <div class="type-toggle active customer" data-type="CUSTOMER"><span class="dot"></span>Customer</div>
+        <div class="type-toggle active competitor" data-type="COMPETITOR"><span class="dot"></span>Competitor</div>
+        <select class="focus-select" id="selectorEnfoque">
+          <option value="">Focus: all holdings</option>
+          {% for s in simbolos_portafolio %}
+          <option value="{{ s }}">Focus: {{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.85rem" id="conteoGrafo"></div>
+      <div class="graph-canvas" id="lienzoGrafo">
+        <svg id="svgAristas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1"></svg>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        No holdings yet — buy a stock to see its place in the risk map.
+        <br>
+        <a href="/trade" class="btn btn-primary">Make your first trade</a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- LISTA DE ADYACENCIA (cruda, sigue los mismos filtros que el mapa de arriba) -->
+    <div class="card">
+      <div class="section-title">Adjacency List</div>
+      <div style="font-size:0.86rem" id="listaAdyacencia">
+        <div style="color:var(--text-muted)">No relationships to show yet — buy a stock to populate this list</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DERECHA: CONTROLES -->
+  <div style="display:flex;flex-direction:column;gap:1.25rem">
+
+    <!-- ANÁLISIS DE RIESGO -->
+    <div class="card">
+      <div class="section-title">Cascade Risk Analysis</div>
+      <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
+        Enter a ticker to check which companies in your portfolio are exposed if that company faces problems (bad earnings, supply chain disruption, etc.)
+      </p>
+      <form method="POST" action="/risk">
+        <input type="hidden" name="tipo_formulario" value="verificar_riesgo"/>
+        <div class="form-group">
+          <label class="form-label">Ticker to check</label>
+          <input class="form-input" type="text" name="simbolo"
+                 placeholder="e.g. TSM, NVDA..."
+                 style="text-transform:uppercase"
+                 value="{{ simbolo_verificado or '' }}" maxlength="6"/>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Analyze Exposure</button>
+      </form>
+
+      {% if resultado_riesgo is not none %}
+      <div style="margin-top:1.1rem">
+        {% if resultado_riesgo %}
+        <div class="risk-result-card risk-exposed">
+          <div style="color:var(--red);margin-bottom:0.7rem;font-weight:600">
+            Risk detected for {{ simbolo_verificado }}
+          </div>
+          {% for afectado, exposicion in resultado_riesgo %}
+          <div style="padding:0.4rem 0;border-bottom:1px solid rgba(255,59,48,0.15);display:flex;align-items:center;gap:0.75rem">
+            <span style="color:var(--text);font-weight:700">{{ afectado }}</span>
+            <span style="color:var(--text-muted)">exposed via</span>
+            <span class="rel-type-badge rel-{{ exposicion|lower }}">{{ exposicion }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="risk-result-card risk-safe">
+          <span style="color:var(--green);font-weight:600">No direct exposure — your portfolio is not directly linked to {{ simbolo_verificado }}</span>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- AGREGAR RELACIÓN -->
+    <div class="card">
+      <div class="section-title">Add Relationship</div>
+      <form method="POST" action="/risk">
+        <input type="hidden" name="tipo_formulario" value="agregar_relacion"/>
+        <div class="grid-2" style="gap:0.75rem">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">From Ticker</label>
+            <input class="form-input" type="text" name="simbolo1" placeholder="NVDA" maxlength="6" style="text-transform:uppercase"/>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">To Ticker</label>
+            <input class="form-input" type="text" name="simbolo2" placeholder="TSM" maxlength="6" style="text-transform:uppercase"/>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:0.75rem">
+          <label class="form-label">Relationship Type</label>
+          <select class="form-input" name="tipo_relacion">
+            <option value="SUPPLIER">SUPPLIER</option>
+            <option value="CUSTOMER">CUSTOMER</option>
+            <option value="COMPETITOR">COMPETITOR</option>
+          </select>
+        </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem">
+          <input type="checkbox" name="bidireccional" id="bidir" style="accent-color:var(--blue)"/>
+          <label for="bidir" style="font-size:0.85rem;color:var(--text-muted);cursor:pointer">
+            Bidirectional (e.g. competitors)
+          </label>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-full">Add Relationship</button>
+      </form>
+    </div>
+
+    <!-- RESUMEN DE EXPOSICIÓN DEL PORTAFOLIO -->
+    <div class="card">
+      <div class="section-title">Your Portfolio Nodes</div>
+      {% if simbolos_portafolio %}
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
+        {% for s in simbolos_portafolio %}
+        <span style="background:rgba(52,199,89,0.12);color:var(--green);padding:0.3rem 0.75rem;border-radius:7px;font-size:0.85rem;font-weight:600">
+          {{ s }}
+        </span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="font-size:0.85rem;color:var(--text-muted)">
+        No holdings yet — make trades first
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const datosGrafo = {{ datos_grafo | tojson }};
+const tiposActivos = new Set(['SUPPLIER', 'CUSTOMER', 'COMPETITOR']);
+let simboloEnfoque = '';
+
+function obtenerDatosFiltrados() {
+  let aristas = datosGrafo.aristas.filter(a => tiposActivos.has(a.etiqueta));
+  if (simboloEnfoque) {
+    aristas = aristas.filter(a => a.origen === simboloEnfoque || a.destino === simboloEnfoque);
+  }
+  const idsNodos = new Set();
+  if (simboloEnfoque) {
+    // Solo la empresa enfocada y aquello con lo que realmente está conectada —
+    // otras posiciones del portafolio sin relación con ella quedan afuera.
+    idsNodos.add(simboloEnfoque);
+  } else {
+    datosGrafo.nodos.filter(n => n.en_portafolio).forEach(n => idsNodos.add(n.id));
+  }
+  aristas.forEach(a => { idsNodos.add(a.origen); idsNodos.add(a.destino); });
+  const nodos = datosGrafo.nodos.filter(n => idsNodos.has(n.id));
+  return { nodos, aristas };
+}
+
+function limpiarLienzo() {
+  const lienzo = document.getElementById('lienzoGrafo');
+  if (!lienzo) return;
+  const svg = document.getElementById('svgAristas');
+  lienzo.querySelectorAll('.graph-node, .edge-label').forEach(el => el.remove());
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+}
+
+function actualizar() {
+  limpiarLienzo();
+  const datos = obtenerDatosFiltrados();
+  renderizarGrafo(datos);
+  renderizarListaAdyacencia(datos);
+  const elementoConteo = document.getElementById('conteoGrafo');
+  if (elementoConteo) elementoConteo.textContent = `${datos.nodos.length} companies, ${datos.aristas.length} connections shown`;
+}
+
+function renderizarListaAdyacencia(datos) {
+  const contenedor = document.getElementById('listaAdyacencia');
+  if (!contenedor) return;
+  const agrupado = {};
+  datos.aristas.forEach(a => {
+    (agrupado[a.origen] = agrupado[a.origen] || []).push(a);
+  });
+  const nodosOrigen = Object.keys(agrupado).sort();
+  if (!nodosOrigen.length) {
+    contenedor.innerHTML = '<div style="color:var(--text-muted)">No relationships match the current filters</div>';
+    return;
+  }
+  contenedor.innerHTML = nodosOrigen.map(nodo => `
+    <div style="margin-bottom:0.75rem">
+      <span style="color:var(--text);font-weight:700">${nodo}</span>
+      ${agrupado[nodo].map(a => `
+        <div style="padding-left:1.25rem;color:var(--text-muted);margin-top:0.2rem">
+          <span class="rel-type-badge rel-${a.etiqueta.toLowerCase()}">${a.etiqueta}</span>
+          → <span style="color:var(--text)">${a.destino}</span>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function renderizarGrafo(datos) {
+  const lienzo = document.getElementById('lienzoGrafo');
+  if (!lienzo) return;
+  const svg    = document.getElementById('svgAristas');
+  const W = lienzo.offsetWidth;
+  const H = lienzo.offsetHeight;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const nodos = datos.nodos;
+  const aristas = datos.aristas;
+  if (!nodos.length) return;
+
+  const posiciones = {};
+  const R = Math.min(W, H) * 0.36;
+  const cx = W / 2, cy = H / 2;
+
+  nodos.forEach((n, i) => {
+    const angulo = (2 * Math.PI * i / nodos.length) - Math.PI / 2;
+    posiciones[n.id] = {
+      x: cx + R * Math.cos(angulo),
+      y: cy + R * Math.sin(angulo)
+    };
+  });
+
+  // Dibujar aristas
+  const coloresArista = { SUPPLIER: '#ff9500', CUSTOMER: '#007aff', COMPETITOR: '#ff3b30' };
+  aristas.forEach(a => {
+    const origen = posiciones[a.origen];
+    const destino = posiciones[a.destino];
+    if (!origen || !destino) return;
+
+    const color = coloresArista[a.etiqueta] || '#8e8e93';
+    const dx = destino.x - origen.x, dy = destino.y - origen.y;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const nr = 27;
+    const sx = origen.x + (dx/len)*nr, sy = origen.y + (dy/len)*nr;
+    const ex = destino.x - (dx/len)*nr, ey = destino.y - (dy/len)*nr;
+
+    // Línea de la flecha
+    const linea = document.createElementNS('http://www.w3.org/2000/svg','line');
+    linea.setAttribute('x1', sx); linea.setAttribute('y1', sy);
+    linea.setAttribute('x2', ex); linea.setAttribute('y2', ey);
+    linea.setAttribute('stroke', color); linea.setAttribute('stroke-width', '1.5');
+    linea.setAttribute('stroke-opacity', '0.7');
+    linea.setAttribute('marker-end', `url(#flecha-${a.etiqueta})`);
+    svg.appendChild(linea);
+
+    // Etiqueta de la arista
+    const lx = (sx + ex) / 2, ly = (sy + ey) / 2;
+    const elementoEtiqueta = document.createElement('div');
+    elementoEtiqueta.className = `edge-label edge-${a.etiqueta.toLowerCase()}`;
+    elementoEtiqueta.textContent = a.etiqueta;
+    elementoEtiqueta.style.left = (lx - 28) + 'px';
+    elementoEtiqueta.style.top  = (ly - 9) + 'px';
+    lienzo.appendChild(elementoEtiqueta);
+  });
+
+  // Marcadores de punta de flecha
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  ['SUPPLIER:#ff9500','CUSTOMER:#007aff','COMPETITOR:#ff3b30'].forEach(s => {
+    const [id, color] = s.split(':');
+    const marcador = document.createElementNS('http://www.w3.org/2000/svg','marker');
+    marcador.setAttribute('id', `flecha-${id}`);
+    marcador.setAttribute('markerWidth','6'); marcador.setAttribute('markerHeight','6');
+    marcador.setAttribute('refX','3'); marcador.setAttribute('refY','3');
+    marcador.setAttribute('orient','auto');
+    const ruta = document.createElementNS('http://www.w3.org/2000/svg','path');
+    ruta.setAttribute('d','M0,0 L6,3 L0,6 Z');
+    ruta.setAttribute('fill', color); ruta.setAttribute('opacity','0.8');
+    marcador.appendChild(ruta);
+    defs.appendChild(marcador);
+  });
+  svg.insertBefore(defs, svg.firstChild);
+
+  // Dibujar nodos
+  nodos.forEach(n => {
+    const pos = posiciones[n.id];
+    const el = document.createElement('div');
+    el.className = 'graph-node' + (n.en_portafolio ? ' in-portfolio' : '');
+    el.textContent = n.id;
+    el.style.left = (pos.x - 27) + 'px';
+    el.style.top  = (pos.y - 27) + 'px';
+    lienzo.appendChild(el);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  actualizar();
+
+  document.querySelectorAll('.type-toggle').forEach(el => {
+    el.addEventListener('click', () => {
+      const tipo = el.dataset.type;
+      if (tiposActivos.has(tipo)) {
+        tiposActivos.delete(tipo);
+        el.classList.remove('active');
+      } else {
+        tiposActivos.add(tipo);
+        el.classList.add('active');
+      }
+      actualizar();
+    });
+  });
+
+  const selectorEnfoque = document.getElementById('selectorEnfoque');
+  if (selectorEnfoque) {
+    selectorEnfoque.addEventListener('change', () => {
+      simboloEnfoque = selectorEnfoque.value;
+      actualizar();
+    });
+  }
+});
+
+window.addEventListener('resize', actualizar);
+</script>
+{% endblock %}

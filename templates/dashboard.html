@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Portfolio — Investor Scout{% endblock %}
+
+{% block extra_head %}
+<style>
+  .alloc-row { padding: 0.7rem 0; border-bottom: 1px solid var(--border); }
+  .alloc-row:last-child { border-bottom: none; }
+  .alloc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.45rem; }
+  .alloc-name { display: flex; align-items: center; gap: 0.55rem; }
+  .alloc-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .alloc-label { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+  .alloc-sub { font-size: 0.76rem; color: var(--text-muted); margin-left: 1.4rem; }
+  .alloc-figures { text-align: right; }
+  .alloc-value { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+  .alloc-pct { font-size: 0.78rem; color: var(--text-muted); }
+  .alloc-bar-track { height: 6px; border-radius: 3px; background: var(--bg-input); overflow: hidden; margin-top: 0.5rem; }
+  .alloc-bar-fill { height: 100%; border-radius: 3px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Portfolio</div>
+  <div class="page-subtitle">Welcome back, {{ usuario.nombre }} · Live market data</div>
+</div>
+
+<!-- TARJETAS DE ESTADÍSTICAS -->
+<div class="grid-4" style="margin-bottom:1.5rem">
+
+  <div class="card">
+    <div class="card-label">Total Net Worth</div>
+    <div class="card-value">${{ "%.2f"|format(valor_total) }}</div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Cash Balance</div>
+    <div class="card-value">${{ "%.2f"|format(portafolio.saldo_efectivo) }}</div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Active Holdings</div>
+    <div class="card-value">{{ posiciones|length }}</div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Transactions</div>
+    <div class="card-value">{{ cantidad_transacciones }}</div>
+  </div>
+
+</div>
+
+<!-- ASIGNACIÓN POR SECTOR (Árbol del Portafolio) -->
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="section-title">Allocation by Sector</div>
+  {% if desglose_sectores %}
+  {% set colores = ['var(--blue)','var(--green)','var(--orange)','var(--purple)','var(--teal)','var(--red)'] %}
+  <div>
+    {% for s in desglose_sectores %}
+    {% set color = colores[loop.index0 % (colores|length)] %}
+    <div class="alloc-row">
+      <div class="alloc-top">
+        <div>
+          <div class="alloc-name">
+            <span class="alloc-dot" style="background:{{ color }}"></span>
+            <span class="alloc-label">{{ s.nombre }}</span>
+          </div>
+          <div class="alloc-sub">{{ s.empresas|join(', ') }}</div>
+        </div>
+        <div class="alloc-figures">
+          <div class="alloc-value">${{ "%.2f"|format(s.valor) }}</div>
+          <div class="alloc-pct">{{ "%.1f"|format(s.porcentaje) }}%</div>
+        </div>
+      </div>
+      <div class="alloc-bar-track">
+        <div class="alloc-bar-fill" style="width:{{ s.porcentaje }}%;background:{{ color }}"></div>
+      </div>
+    </div>
+    {% endfor %}
+    <div class="alloc-row">
+      <div class="alloc-top">
+        <div class="alloc-name">
+          <span class="alloc-dot" style="background:var(--text-muted)"></span>
+          <span class="alloc-label">Cash</span>
+        </div>
+        <div class="alloc-figures">
+          <div class="alloc-value">${{ "%.2f"|format(portafolio.saldo_efectivo) }}</div>
+          <div class="alloc-pct">{{ "%.1f"|format(porcentaje_efectivo) }}%</div>
+        </div>
+      </div>
+      <div class="alloc-bar-track">
+        <div class="alloc-bar-fill" style="width:{{ porcentaje_efectivo }}%;background:var(--text-muted)"></div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state">No holdings yet — buy a stock to see your sector breakdown.</div>
+  {% endif %}
+</div>
+
+<!-- POSICIONES -->
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="section-title">Current Holdings</div>
+  {% if posiciones %}
+  <div class="stock-list">
+    {% for p in posiciones %}
+    <div class="stock-row">
+      <div class="stock-id">
+        <span class="stock-ticker">{{ p.simbolo }}</span>
+        <span class="stock-sub">{{ "%.4f"|format(p.acciones) }} shares · avg ${{ "%.2f"|format(p.costo_promedio) }}</span>
+      </div>
+      <div class="stock-figures">
+        <div class="stock-figure">
+          <span class="stock-figure-label">Price</span>
+          <span class="stock-figure-value">
+            {% if p.precio_actual > 0 %}${{ "%.2f"|format(p.precio_actual) }}{% else %}—{% endif %}
+          </span>
+        </div>
+        <div class="stock-figure">
+          <span class="stock-figure-label">Value</span>
+          <span class="stock-figure-value">${{ "%.2f"|format(p.valor_actual) }}</span>
+        </div>
+        <div class="stock-figure">
+          <span class="stock-figure-label">P&amp;L</span>
+          <span class="pill {% if p.ganancia_perdida >= 0 %}pill-pos{% else %}pill-neg{% endif %}">
+            {{ "▲" if p.ganancia_perdida >= 0 else "▼" }} {{ "%.2f"|format(p.ganancia_perdida_pct) }}%
+          </span>
+        </div>
+        <a href="/trade" class="btn btn-secondary" style="padding:0.5rem 1rem;font-size:0.82rem">Sell</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    No holdings yet.
+    <br>
+    <a href="/trade" class="btn btn-primary">Make your first trade</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- COMPRA RÁPIDA -->
+<div class="card">
+  <div class="section-title">Quick Buy</div>
+  <form method="POST" action="/trade" style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap">
+    <div class="form-group" style="flex:1;min-width:120px;margin-bottom:0">
+      <label class="form-label">Ticker Symbol</label>
+      <input class="form-input" type="text" name="simbolo" placeholder="AAPL" maxlength="6" style="text-transform:uppercase" required/>
+    </div>
+    <div class="form-group" style="flex:1;min-width:120px;margin-bottom:0">
+      <label class="form-label">Shares</label>
+      <input class="form-input" type="number" name="acciones" placeholder="1" min="0.0001" step="any" required/>
+    </div>
+    <input type="hidden" name="accion" value="BUY"/>
+    <button type="submit" class="btn btn-buy">Buy</button>
+  </form>
+  <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.85rem">
+    Prices are fetched live from Yahoo Finance.
+  </p>
+</div>
+{% endblock %}

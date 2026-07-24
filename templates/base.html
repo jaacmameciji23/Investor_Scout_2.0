@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Investor Scout{% endblock %}</title>
+  <style>
+    :root {
+      --bg:           #f2f2f7;
+      --bg-card:      #ffffff;
+      --bg-input:     #f2f2f7;
+      --bg-input-focus:#ffffff;
+      --border:       #e5e5ea;
+      --text:         #1c1c1e;
+      --text-secondary:#3c3c43;
+      --text-muted:   #8e8e93;
+      --blue:         #007aff;
+      --green:        #34c759;
+      --red:          #ff3b30;
+      --orange:       #ff9500;
+      --purple:       #af52de;
+      --teal:         #30b0c7;
+      --shadow:       0 1px 2px rgba(0,0,0,0.04), 0 1px 8px rgba(0,0,0,0.04);
+      --radius:       14px;
+      --radius-sm:    8px;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:           #000000;
+        --bg-card:      #1c1c1e;
+        --bg-input:     #2c2c2e;
+        --bg-input-focus:#3a3a3c;
+        --border:       #2c2c2e;
+        --text:         #ffffff;
+        --text-secondary:#ebebf5;
+        --text-muted:   #8e8e93;
+        --shadow:       0 1px 2px rgba(0,0,0,0.3), 0 1px 8px rgba(0,0,0,0.2);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { -webkit-font-smoothing: antialiased; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      min-height: 100vh;
+    }
+
+    /* ─── BARRA DE NAVEGACIÓN ─── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(242,242,247,0.85);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    @media (prefers-color-scheme: dark) {
+      nav { background: rgba(0,0,0,0.75); }
+    }
+
+    .nav-logo {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+    }
+
+    .nav-logo span { color: var(--blue); }
+
+    .nav-links {
+      display: flex; gap: 0.15rem;
+      list-style: none;
+      background: var(--bg-input);
+      padding: 0.2rem;
+      border-radius: 10px;
+    }
+
+    .nav-links a {
+      display: block;
+      padding: 0.4rem 0.9rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-radius: 8px;
+      transition: all 0.15s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-links a.active {
+      color: var(--text);
+      background: var(--bg-card);
+      box-shadow: var(--shadow);
+      font-weight: 600;
+    }
+
+    /* ─── DISEÑO ─── */
+    .page-wrapper {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* ─── TARJETAS ─── */
+    .card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.5rem;
+      position: relative;
+    }
+
+    .card-label {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .card-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    /* ─── ENCABEZADO DE PÁGINA ─── */
+    .page-header {
+      margin-bottom: 1.75rem;
+    }
+
+    .page-title {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    .page-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    /* ─── CUADRÍCULA ─── */
+    .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 0.85rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 0.85rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 1.25rem; }
+    @media (max-width: 900px) {
+      .grid-4 { grid-template-columns: repeat(2,1fr); }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .grid-4, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* ─── LISTA DE ACCIONES (posiciones) ─── */
+    .stock-list { display: flex; flex-direction: column; }
+    .stock-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.9rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .stock-row:last-child { border-bottom: none; }
+
+    .stock-id { display: flex; flex-direction: column; gap: 0.15rem; }
+    .stock-ticker { font-weight: 600; font-size: 0.98rem; color: var(--text); }
+    .stock-sub { font-size: 0.8rem; color: var(--text-muted); }
+
+    .stock-figures { display: flex; align-items: center; gap: 1.25rem; }
+    .stock-figure { display: flex; flex-direction: column; align-items: flex-end; gap: 0.2rem; min-width: 74px; }
+    .stock-figure-label { font-size: 0.7rem; color: var(--text-muted); }
+    .stock-figure-value { font-size: 0.92rem; font-weight: 600; color: var(--text); }
+
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.2rem;
+      padding: 0.25rem 0.55rem;
+      border-radius: 7px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+    }
+    .pill-pos { background: var(--green); }
+    .pill-neg { background: var(--red); }
+    .pill-neutral { background: var(--text-muted); }
+
+    /* ─── FORMULARIOS ─── */
+    .form-group { margin-bottom: 1.1rem; }
+    .form-label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      padding: 0.7rem 0.9rem;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .form-input:focus {
+      background: var(--bg-input-focus);
+      border-color: var(--blue);
+    }
+    .form-input::placeholder { color: var(--text-muted); }
+
+    /* ─── BOTONES ─── */
+    .btn {
+      display: inline-flex;
+      align-items: center; justify-content: center; gap: 0.4rem;
+      padding: 0.7rem 1.5rem;
+      font-family: var(--font);
+      font-size: 0.92rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn:not(:disabled):hover { opacity: 0.88; }
+
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-buy     { background: var(--green); color: #fff; }
+    .btn-sell    { background: var(--red); color: #fff; }
+    .btn-secondary {
+      background: var(--bg-input);
+      color: var(--text);
+    }
+    .btn-full { width: 100%; }
+
+    /* ─── ETIQUETAS (tipo de orden) ─── */
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .badge-buy  { background: rgba(52,199,89,0.12); color: var(--green); }
+    .badge-sell { background: rgba(255,59,48,0.12); color: var(--red); }
+    .badge-info { background: rgba(0,122,255,0.12); color: var(--blue); }
+
+    /* ─── MENSAJES FLASH ─── */
+    .flash-wrap { margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .flash {
+      padding: 0.8rem 1.1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+    .flash-success { background: rgba(52,199,89,0.12); color: var(--green); }
+    .flash-error   { background: rgba(255,59,48,0.12); color: var(--red); }
+
+    /* ─── TÍTULO DE SECCIÓN ─── */
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 1rem;
+      letter-spacing: -0.01em;
+    }
+
+    /* ─── ESTADO VACÍO ─── */
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+    .empty-state .btn { margin-top: 1rem; }
+
+    /* ─── FILA CLAVE/VALOR (paneles de info) ─── */
+    .kv-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.55rem 0;
+      font-size: 0.9rem;
+    }
+    .kv-row .k { color: var(--text-muted); }
+    .kv-row .v { color: var(--text); font-weight: 600; }
+
+    /* barra de desplazamiento */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="/">Investor<span>Scout</span></a>
+  <ul class="nav-links">
+    <li><a href="/" {% if request.endpoint == 'panel' %}class="active"{% endif %}>Portfolio</a></li>
+    <li><a href="/trade" {% if request.endpoint == 'operar' %}class="active"{% endif %}>Trade</a></li>
+    <li><a href="/history" {% if request.endpoint == 'historial' %}class="active"{% endif %}>History</a></li>
+    <li><a href="/risk" {% if request.endpoint == 'riesgo' %}class="active"{% endif %}>Risk</a></li>
+  </ul>
+</nav>
+
+<div class="page-wrapper">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-wrap">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</div>
+
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

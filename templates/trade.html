@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Trade — Investor Scout{% endblock %}
+
+{% block extra_head %}
+<style>
+  .segmented {
+    display: flex; gap: 0.2rem;
+    background: var(--bg-input);
+    padding: 0.2rem;
+    border-radius: 10px;
+  }
+  .segmented .seg-option {
+    flex: 1; padding: 0.6rem;
+    text-align: center;
+    font-size: 0.88rem; font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+  .seg-buy.active { background: var(--bg-card); color: var(--green); box-shadow: var(--shadow); }
+  .seg-sell.active { background: var(--bg-card); color: var(--red); box-shadow: var(--shadow); }
+
+  .price-display {
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    padding: 1rem 1.1rem;
+    min-height: 60px;
+    display: flex; align-items: center; gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .price-ticker { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+  .price-value  { font-size: 1.4rem; font-weight: 700; color: var(--text); }
+  .price-status { font-size: 0.82rem; color: var(--text-muted); }
+
+  .order-summary {
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    padding: 0.9rem 1.1rem;
+    font-size: 0.88rem;
+  }
+  .order-summary .row { display: flex; justify-content: space-between; padding: 0.4rem 0; color: var(--text-muted); }
+  .order-summary .row:not(:last-child) { border-bottom: 1px solid var(--border); }
+  .order-summary .row:last-child { color: var(--text); }
+  .order-summary .highlight { color: var(--text); font-weight: 600; }
+
+  .spinner {
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid var(--border); border-top-color: var(--blue);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: middle; margin-left: 0.4rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Trade</div>
+  <div class="page-subtitle">Execute buy/sell orders at live market prices</div>
+</div>
+
+<div class="grid-2">
+  <!-- FORMULARIO DE OPERACIÓN -->
+  <div class="card">
+    <div class="section-title">New Order</div>
+    <form method="POST" action="/trade" id="formularioOperar">
+
+      <!-- SELECTOR DE ACCIÓN (BUY/SELL) -->
+      <div class="form-group">
+        <div class="form-label">Order Type</div>
+        <div class="segmented">
+          <div class="seg-option seg-buy active" id="etiquetaComprar" onclick="establecerAccion('BUY')">Buy</div>
+          <div class="seg-option seg-sell" id="etiquetaVender" onclick="establecerAccion('SELL')">Sell</div>
+        </div>
+        <input type="hidden" name="accion" id="inputAccion" value="BUY"/>
+      </div>
+
+      <!-- SÍMBOLO -->
+      <div class="form-group">
+        <label class="form-label" for="inputSimbolo">Ticker Symbol</label>
+        <input class="form-input" type="text" id="inputSimbolo" name="simbolo"
+               placeholder="e.g. AAPL, NVDA, MSFT..."
+               maxlength="6" autocomplete="off"
+               style="text-transform:uppercase;font-size:1.05rem"/>
+      </div>
+
+      <!-- PRECIO EN VIVO -->
+      <div class="form-group">
+        <div class="form-label">Live Market Price</div>
+        <div class="price-display" id="visorPrecio">
+          <span class="price-status" id="estadoPrecio">Enter a ticker symbol to fetch a price</span>
+        </div>
+      </div>
+
+      <!-- ACCIONES -->
+      <div class="form-group">
+        <label class="form-label" for="inputAcciones">Number of Shares</label>
+        <input class="form-input" type="number" id="inputAcciones" name="acciones"
+               placeholder="0" min="0.0001" step="any"/>
+      </div>
+
+      <!-- RESUMEN DE LA ORDEN -->
+      <div class="form-group">
+        <div class="form-label">Order Summary</div>
+        <div class="order-summary" id="resumenOrden">
+          <div class="row"><span>Ticker</span><span class="highlight" id="resumenSimbolo">—</span></div>
+          <div class="row"><span>Price per Share</span><span id="resumenPrecio">—</span></div>
+          <div class="row"><span>Shares</span><span id="resumenAcciones">—</span></div>
+          <div class="row"><span>Cash Available</span><span>${{ "%.2f"|format(portafolio.saldo_efectivo) }}</span></div>
+          <div class="row"><span>Estimated Total</span><span class="highlight" id="resumenTotal">—</span></div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-buy btn-full" id="botonEnviar" disabled>
+        Confirm Order
+      </button>
+    </form>
+  </div>
+
+  <!-- PANEL DE INFORMACIÓN -->
+  <div style="display:flex;flex-direction:column;gap:1.25rem">
+    <div class="card">
+      <div class="section-title">Account Status</div>
+      <div class="kv-row"><span class="k">Portfolio Name</span><span class="v">{{ portafolio.nombre }}</span></div>
+      <div class="kv-row"><span class="k">Available Cash</span><span class="v">${{ "%.2f"|format(portafolio.saldo_efectivo) }}</span></div>
+      <div class="kv-row"><span class="k">Active Positions</span><span class="v">{{ portafolio.posiciones|length }}</span></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">How It Works</div>
+      <div style="font-size:0.85rem;color:var(--text-muted);line-height:1.9">
+        <div>1. Enter ticker and share count</div>
+        <div>2. Price is fetched live from Yahoo Finance</div>
+        <div>3. Transaction is appended to your history</div>
+        <div>4. Holdings are recalculated automatically</div>
+        <div>5. Portfolio balance is updated</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Current Positions</div>
+      {% if portafolio.posiciones %}
+        <div>
+          {% for simbolo, p in portafolio.posiciones.items() %}
+          <div class="kv-row" style="border-bottom:1px solid var(--border)">
+            <span class="k" style="color:var(--text);font-weight:600">{{ simbolo }}</span>
+            <span class="k">{{ p.acciones }} shares</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div style="font-size:0.85rem;color:var(--text-muted)">No positions yet</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  let precioActual = null;
+  let accionActual = 'BUY';
+  let tiempoEsperaConsulta = null;
+
+  function establecerAccion(accion) {
+    accionActual = accion;
+    document.getElementById('inputAccion').value = accion;
+    document.getElementById('etiquetaComprar').classList.toggle('active', accion === 'BUY');
+    document.getElementById('etiquetaVender').classList.toggle('active', accion === 'SELL');
+    actualizarResumen();
+  }
+
+  function actualizarResumen() {
+    const simbolo = document.getElementById('inputSimbolo').value.toUpperCase();
+    const acciones = parseFloat(document.getElementById('inputAcciones').value) || 0;
+    const boton = document.getElementById('botonEnviar');
+
+    document.getElementById('resumenSimbolo').textContent = simbolo || '—';
+    document.getElementById('resumenAcciones').textContent = acciones > 0 ? acciones : '—';
+
+    if (precioActual && acciones > 0 && simbolo) {
+      const total = precioActual * acciones;
+      document.getElementById('resumenPrecio').textContent = '$' + precioActual.toFixed(2);
+      document.getElementById('resumenTotal').textContent = '$' + total.toFixed(2);
+      boton.disabled = false;
+      boton.textContent = 'Confirm ' + (accionActual === 'BUY' ? 'Buy' : 'Sell') + ' Order';
+      boton.className = 'btn btn-full ' + (accionActual === 'BUY' ? 'btn-buy' : 'btn-sell');
+    } else {
+      document.getElementById('resumenPrecio').textContent = precioActual ? '$' + precioActual.toFixed(2) : '—';
+      document.getElementById('resumenTotal').textContent = '—';
+      boton.disabled = true;
+    }
+  }
+
+  function obtenerPrecio(simbolo) {
+    if (!simbolo || simbolo.length < 1) return;
+    const visor = document.getElementById('visorPrecio');
+    visor.innerHTML = '<span class="price-status">Fetching ' + simbolo + '...<span class="spinner"></span></span>';
+    precioActual = null;
+    actualizarResumen();
+
+    fetch('/api/price/' + encodeURIComponent(simbolo))
+      .then(r => r.json())
+      .then(datos => {
+        if (datos.precio) {
+          precioActual = datos.precio;
+          visor.innerHTML =
+            '<span class="price-ticker">' + datos.simbolo + '</span>' +
+            '<span class="price-value">$' + datos.precio.toFixed(2) + '</span>' +
+            '<span class="price-status">Live data from Yahoo Finance</span>';
+        } else {
+          visor.innerHTML = '<span class="price-status" style="color:var(--red)">Ticker not found. Try AAPL, NVDA, MSFT...</span>';
+        }
+        actualizarResumen();
+      })
+      .catch(() => {
+        visor.innerHTML = '<span class="price-status" style="color:var(--red)">Connection error</span>';
+        actualizarResumen();
+      });
+  }
+
+  document.getElementById('inputSimbolo').addEventListener('input', function() {
+    const valor = this.value.toUpperCase().trim();
+    this.value = valor;
+    clearTimeout(tiempoEsperaConsulta);
+    if (valor.length >= 2) {
+      tiempoEsperaConsulta = setTimeout(() => obtenerPrecio(valor), 700);
+    }
+    actualizarResumen();
+  });
+
+  document.getElementById('inputAcciones').addEventListener('input', actualizarResumen);
+</script>
+{% endblock %}
